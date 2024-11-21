@@ -4,7 +4,6 @@ from multiprocessing import Pool
 import xml.etree.ElementTree as ET
 from pathlib import Path
 import csv
-import os
 from typing import Union
 import math
 
