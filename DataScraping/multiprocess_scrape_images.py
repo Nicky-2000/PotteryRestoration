@@ -1,6 +1,6 @@
 import csv
 import requests
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 import xml.etree.ElementTree as ET
 from pathlib import Path
 import csv
@@ -49,15 +49,22 @@ def get_images(
     image_folder.mkdir(parents=True, exist_ok=True)
     for im in im_file_names:
         im = im.strip()
+        
+        im_name = Path(im).stem
+        file_name = image_folder / f"{im_name}-{technique}.jpg"
+        if Path(file_name).exists():
+            # print("Skipping image as it already exists")
+            continue
         new_url = f"{base_url}/{im}cc001001.jpe"
         try:
+            
             # Download the Image
             response = requests.get(new_url, timeout=10)
             response.raise_for_status()  # Raise an exception for errors
             im_byte_code = response.content
 
-            im_name = Path(im).stem
-            file_name = image_folder / f"{im_name}-{technique}.jpg"
+            # im_name = Path(im).stem
+            # file_name = image_folder / f"{im_name}-{technique}.jpg"
 
             with file_name.open("wb") as f:
                 f.write(im_byte_code)
@@ -73,11 +80,13 @@ def get_images(
 
 
 def process_batch(
-    batch: list[list[str]], image_folder: Path, output_folder: Path, error_file: Path
+    batch: list[list[str]], image_folder: Path, output_folder: Path, error_file: Path, batch_id: int
 ) -> None:
     """
     Process a batch of rows: parse XML and download images.
     """
+    print(f"Starting Batch: {batch_id}")
+
     for row in batch:
         try:
             if row[0] == "\ufeffURI":
@@ -102,6 +111,7 @@ def process_batch(
             print(f"Error processing row {row[0]}: {e}")
             with error_file.open("a") as ef:
                 ef.write(f"{row[0]}\n")
+    print(f"batch_id: {batch_id} Completed")
 
 
 def multiprocess_scrape_images(
@@ -110,7 +120,7 @@ def multiprocess_scrape_images(
     output_folder: Union[str, Path],
     error_file: Union[str, Path],
     num_processes: int = 4,
-    batch_size: int = 100,
+    batch_size: int = 1000,
 ) -> None:
     
     
@@ -138,5 +148,5 @@ def multiprocess_scrape_images(
     with Pool(processes=num_processes) as pool:
         pool.starmap(
             process_batch,
-            [(batch, image_folder, output_folder, error_file) for batch in batches],
+            [(batch, image_folder, output_folder, error_file, batch_id) for batch_id, batch in enumerate(batches)],
         )
